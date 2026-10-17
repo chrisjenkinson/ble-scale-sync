@@ -1,6 +1,6 @@
 import { createReadingSource } from '../ble/index.js';
 import type { ScaleAdapter } from '../interfaces/scale-adapter.js';
-import { resolveUserProfile } from '../config/resolve.js';
+import { resolveSessionProfile, resolveUserProfile } from '../config/resolve.js';
 import { ConsecutiveFailureWatchdog } from '../ble/watchdog.js';
 import { shouldCountAsWatchdogFailure } from '../ble/failure-kind.js';
 import { abortableSleep, POST_DISCONNECT_GRACE_MS } from '../ble/types.js';
@@ -49,6 +49,7 @@ export async function buildReadingSource(
   // Re-derived on each call (and on each reload) so edits to users[0] land on
   // the next cycle without a process restart.
   const profile = () => resolveUserProfile(ctx.config.users[0], ctx.config.scale);
+  const selectProfile = (weightKg: number) => resolveSessionProfile(ctx.config, weightKg);
   const scaleAuth = () => ({
     pin: ctx.config.users[0]?.beurer_pin,
     userIndex: ctx.config.users[0]?.beurer_user_index,
@@ -66,9 +67,15 @@ export async function buildReadingSource(
     profile: profile(),
     scaleAuth: scaleAuth(),
   });
-
   if (plan.kind === 'watcher') {
     const { watcher } = plan;
+    watcher.updateConfig({
+      adapters,
+      targetMac: ctx.scaleMac,
+      profile: profile(),
+      selectProfile,
+      scaleAuth: scaleAuth(),
+    });
     // Proxy liveness (#281). The watcher branch has no watchdog of its own: a
     // wedged transport parks nextReading() forever and looks exactly like a
     // house where nobody has stepped on the scale. Advertisement silence is the
@@ -91,6 +98,7 @@ export async function buildReadingSource(
           adapters,
           targetMac: ctx.scaleMac,
           profile: profile(),
+          selectProfile,
           scaleAuth: scaleAuth(),
         }),
       onFailure: (err) => {
@@ -130,7 +138,7 @@ export async function buildReadingSource(
   const applyGraceFloor = plan.appliesGraceFloor;
 
   return {
-    source: new PollReadingSource(ctx, adapters),
+    source: new PollReadingSource(ctx, adapters, selectProfile),
     failureLogPrefix: 'No scale found',
     // An idle cycle waits a few seconds instead of the 5 s -> 60 s failure
     // backoff (#398). Only the node-ble handler tags its failures, so on the

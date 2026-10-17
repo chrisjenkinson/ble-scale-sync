@@ -5,6 +5,7 @@ import type { WeightUnit, UserConfig } from '../config/schema.js';
 import type { AppContext } from './context.js';
 import { resolveUserProfile } from '../config/resolve.js';
 import { matchUserByWeight, detectWeightDrift, isOutOfRange } from '../config/user-matching.js';
+import type { MatchResult } from '../config/user-matching.js';
 import { updateLastKnownWeight } from '../config/write.js';
 import { dispatchExports } from '../orchestrator.js';
 import { createLogger } from '../logger.js';
@@ -122,6 +123,18 @@ export async function processReading(
   raw: RawReading,
   opts: ProcessReadingOpts = {},
 ): Promise<boolean> {
+  const latest = raw.reading;
+  if (
+    latest.timestamp === undefined &&
+    latest.selectedUserSlug !== undefined &&
+    !ctx.config.users.some((user) => user.slug === latest.selectedUserSlug)
+  ) {
+    log.warn(
+      `Selected user slug "${latest.selectedUserSlug}" is not configured; skipping reading.`,
+    );
+    ctx.display?.beep(600, 150, 3);
+    return true;
+  }
   const isMultiUser = ctx.config.users.length > 1;
   if (isMultiUser) {
     return processMultiUser(ctx, raw, opts.getExportersForUser);
@@ -349,9 +362,9 @@ async function processMultiUser(
   getExportersForUser: ((slug: string) => Exporter[]) | undefined,
 ): Promise<boolean> {
   const all = expandReadings(raw);
+  const latest = all[all.length - 1];
   // Match on the LATEST weight. Premise: cache replay belongs to whoever
   // stepped on the scale last; the firmware does not multiplex users.
-  const latest = all[all.length - 1];
   const matchWeight = latest.weight;
 
   log.info(
@@ -359,7 +372,15 @@ async function processMultiUser(
       (all.length > 1 ? ` (+ ${all.length - 1} historical)` : ''),
   );
 
-  const match = matchUserByWeight(ctx.config.users, matchWeight, ctx.config.unknown_user);
+  // A live session selection is authoritative for this batch. Historical
+  // frames can carry stale selections, so only inspect the latest reading.
+  const hasLiveSelection = latest.timestamp === undefined && latest.selectedUserSlug !== undefined;
+  const match: MatchResult = hasLiveSelection
+    ? {
+        user: ctx.config.users.find((u) => u.slug === latest.selectedUserSlug)!,
+        tier: 'exact',
+      }
+    : matchUserByWeight(ctx.config.users, matchWeight, ctx.config.unknown_user);
 
   if (!match.user) {
     if (match.warning) log.warn(match.warning);

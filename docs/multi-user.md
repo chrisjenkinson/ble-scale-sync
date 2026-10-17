@@ -54,6 +54,12 @@ If no match is found, the `unknown_user` strategy decides what happens:
 
 Note what tiers 1 and 4 mean in practice: a reading outside every configured range is not rejected, it is assigned anyway. `unknown_user` is never consulted, because tier 4 already produced a match. If you want such a reading dropped instead, set `out_of_range: skip`; see [Out-of-range readings](/guide/configuration#out-of-range-readings).
 
+### Senssun IF_B2
+
+Users only need to step on a Senssun IF_B2. BLE Scale Sync waits until one uniquely matched live weight remains unchanged for two seconds, updates reusable scale profile PIN `0001`, and confirms the same user from the final current record before exporting. The scale retains the most recently acknowledged user's demographics in that profile. Use non-overlapping `weight_range` values so a quiet reading identifies one user unambiguously, and set `out_of_range: skip` to discard readings outside every configured range. If an intermediate plateau selects a different user, final correlation fails the measurement rather than routing it to the wrong account.
+
+If you remove a selected user while a completed live reading is queued, that reading is skipped rather than reassigned. This also applies when only one configured user remains. Historical records do not authorize a live session selection.
+
 ## Drift Detection
 
 After matching, the app checks if the weight falls in the **outer 10%** of the user's range. If it does, a warning is logged so you can adjust the range before mismatches start happening.

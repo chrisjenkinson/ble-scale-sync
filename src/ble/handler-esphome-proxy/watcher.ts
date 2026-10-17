@@ -3,6 +3,7 @@ import type {
   BleDeviceInfo,
   UserProfile,
   ScaleAuth,
+  SessionProfileSelector,
 } from '../../interfaces/scale-adapter.js';
 import type { EsphomeProxyConfig } from '../../config/schema.js';
 import { type RawReading, waitForRawReading } from '../shared.js';
@@ -51,6 +52,7 @@ export class ReadingWatcher implements Watcher {
   private adapters: ScaleAdapter[];
   private targetMac?: string;
   private profile?: UserProfile;
+  private selectProfile?: SessionProfileSelector;
   private scaleAuth?: ScaleAuth;
   private config: EsphomeProxyConfig;
   private readonly dedup = new DedupWindow(DEDUP_WINDOW_MS);
@@ -116,12 +118,14 @@ export class ReadingWatcher implements Watcher {
     targetMac?: string,
     profile?: UserProfile,
     scaleAuth?: ScaleAuth,
+    selectProfile?: SessionProfileSelector,
   ) {
     this.config = config;
     this.adapters = adapters;
     this.targetMac = targetMac?.toLowerCase();
     this.profile = profile;
     this.scaleAuth = scaleAuth;
+    this.selectProfile = selectProfile;
   }
 
   async start(): Promise<void> {
@@ -168,7 +172,8 @@ export class ReadingWatcher implements Watcher {
     this.adapters = config.adapters;
     this.targetMac = config.targetMac?.toLowerCase();
     if (config.profile) this.profile = config.profile;
-    if (config.scaleAuth) this.scaleAuth = config.scaleAuth;
+    this.scaleAuth = config.scaleAuth;
+    this.selectProfile = config.selectProfile;
   }
 
   private handleAd(rawInfo: BleDeviceInfo, address: string): void {
@@ -255,6 +260,7 @@ export class ReadingWatcher implements Watcher {
                 undefined,
                 this.scaleAuth,
                 onActivity,
+                this.selectProfile,
               ),
             GATT_READING_IDLE_MS,
             `GATT reading timeout for ${address}`,

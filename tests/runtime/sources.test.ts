@@ -36,6 +36,10 @@ const h = vi.hoisted(() => {
     createReadingSource: vi.fn(),
     raceWithLiveness: vi.fn(() => new Promise(() => {})),
     resolveUserProfile: vi.fn(() => ({ __profile: 'sentinel' })),
+    resolveSessionProfile: vi.fn((config: { users: Array<{ slug?: string }> }) => ({
+      userSlug: config.users[0]?.slug ?? 'unknown',
+      profile: { __profile: config.users[0]?.slug ?? 'unknown' },
+    })),
     abortableSleep: vi.fn(async () => undefined),
   };
 });
@@ -47,7 +51,10 @@ vi.mock('../../src/runtime/proxy-liveness.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../src/runtime/proxy-liveness.js')>();
   return { ...actual, raceWithLiveness: h.raceWithLiveness };
 });
-vi.mock('../../src/config/resolve.js', () => ({ resolveUserProfile: h.resolveUserProfile }));
+vi.mock('../../src/config/resolve.js', () => ({
+  resolveUserProfile: h.resolveUserProfile,
+  resolveSessionProfile: h.resolveSessionProfile,
+}));
 vi.mock('../../src/ble/types.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../src/ble/types.js')>();
   return { ...actual, abortableSleep: h.abortableSleep };
@@ -124,29 +131,23 @@ describe('buildReadingSource() wiring (#186, #246)', () => {
     });
   });
 
-  it('watcher plan: returns the watcher as the source with its prefix and a re-resolving reload', async () => {
-    const plan = watcherPlan('Error processing ESPHome reading');
+  it('watcher selector reads the current config on each invocation', async () => {
+    const plan = watcherPlan('Error processing reading');
     h.createReadingSource.mockResolvedValue(plan);
-    const ctx = makeCtx({ bleHandler: 'esphome-proxy', esphomeProxy: { host: 'h' } as never });
-
-    const bundle = await buildReadingSource(ctx, ADAPTERS, 10, 30);
-
-    // The watcher is wrapped rather than returned directly, so the proxy
-    // liveness check can sit around nextReading (#281). start/stop/nextReading
-    // still have to reach the watcher itself.
-    expect(bundle.failureLogPrefix).toBe('Error processing ESPHome reading');
-    await bundle.source.start?.();
-    expect(plan.watcher.start).toHaveBeenCalled();
-    await bundle.source.stop?.();
-    expect(plan.watcher.stop).toHaveBeenCalled();
-
-    bundle.onSourceReload?.();
-    expect(plan.watcher.updateConfig).toHaveBeenCalledWith({
-      adapters: ADAPTERS,
-      targetMac: ctx.scaleMac,
-      profile: { __profile: 'sentinel' },
-      scaleAuth: { pin: 1234, userIndex: 2 },
+    const first = { slug: 'first' };
+    const second = { slug: 'second' };
+    const ctx = makeCtx({
+      bleHandler: 'mqtt-proxy',
+      config: { users: [first], scale: {} } as never,
     });
+
+    await buildReadingSource(ctx, ADAPTERS, 10, 30);
+    const initialConfig = plan.watcher.updateConfig.mock.calls[0][0];
+    const selector = initialConfig.selectProfile as (weightKg: number) => unknown;
+    expect(selector(82)).toEqual({ userSlug: 'first', profile: { __profile: 'first' } });
+
+    ctx.config = { users: [second], scale: {} } as never;
+    expect(selector(82)).toEqual({ userSlug: 'second', profile: { __profile: 'second' } });
   });
 
   it('poll plan: PollReadingSource + watchdog-wired hooks', async () => {

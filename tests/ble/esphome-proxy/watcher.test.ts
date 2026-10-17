@@ -5,6 +5,7 @@ import type {
   ScaleAdapter,
   ScaleReading,
   BleDeviceInfo,
+  SessionProfileSelector,
 } from '../../../src/interfaces/scale-adapter.js';
 
 const NOTIFY = normalizeUuid('2a9d');
@@ -130,6 +131,53 @@ describe('ReadingWatcher GATT continuous (#116)', () => {
     expect(connectGattSpy).toHaveBeenCalledTimes(1);
     expect(closeSpy).toHaveBeenCalled();
 
+    await watcher.stop();
+  });
+  it('propagates the selector to each GATT session and clears it on reload', async () => {
+    const selectors: Array<SessionProfileSelector | undefined> = [];
+    const selectionA = {
+      userSlug: 'a',
+      profile: { height: 170, age: 30, gender: 'male' as const, isAthlete: false },
+    };
+    const selectionB = {
+      userSlug: 'b',
+      profile: { height: 180, age: 40, gender: 'female' as const, isAthlete: false },
+    };
+    const selectorResults: Array<unknown> = [];
+    const selectorA: SessionProfileSelector = vi.fn(() => selectionA);
+    const selectorB: SessionProfileSelector = vi.fn(() => selectionB);
+    const adapter = {
+      ...gattAdapter(),
+      characteristics: [{ uuid: NOTIFY, type: 'notify' }],
+      onConnected: vi.fn(async (ctx: { selectProfile?: SessionProfileSelector }) => {
+        selectors.push(ctx.selectProfile);
+        selectorResults.push(ctx.selectProfile?.(82) ?? undefined);
+        throw new Error('propagation test session complete');
+      }),
+    } as ScaleAdapter;
+    const watcher = new ReadingWatcher(
+      config,
+      [adapter],
+      undefined,
+      undefined,
+      undefined,
+      selectorA,
+    );
+    await watcher.start();
+    const pool = (
+      watcher as unknown as { pool: { emitAdvert: (info: BleDeviceInfo, mac: string) => void } }
+    ).pool;
+    const info: BleDeviceInfo = { localName: 'GATT-scale', serviceUuids: [] };
+
+    pool.emitAdvert(info, 'AA:BB:CC:DD:EE:10');
+    await vi.waitFor(() => expect(selectors).toHaveLength(1));
+    watcher.updateConfig({ adapters: [adapter], selectProfile: selectorB });
+    pool.emitAdvert(info, 'AA:BB:CC:DD:EE:11');
+    await vi.waitFor(() => expect(selectors).toHaveLength(2));
+    watcher.updateConfig({ adapters: [adapter] });
+    pool.emitAdvert(info, 'AA:BB:CC:DD:EE:12');
+    await vi.waitFor(() => expect(selectors).toHaveLength(3));
+    expect(selectorResults).toEqual([selectionA, selectionB, undefined]);
     await watcher.stop();
   });
 

@@ -11,7 +11,11 @@ import type {
   ScaleReading,
   BodyComposition,
   BleDeviceInfo,
+  ConnectionContext,
+  SessionProfileSelection,
+  SessionProfileSelector,
 } from '../../src/interfaces/scale-adapter.js';
+import type { ScanOptions } from '../../src/ble/types.js';
 
 // ─── Compile-time assertions (no runtime effect) ──────────────────────────────
 
@@ -21,6 +25,17 @@ type Assignable<T, U> = T extends U ? true : false;
 function expectType<T extends true>(): void {
   void 0 as unknown as T;
 }
+
+// Check session-selection contracts at compile time without runtime fixture echoes.
+type ExpectedSessionProfileSelector = (weightKg: number) => SessionProfileSelection | null;
+expectType<Assignable<SessionProfileSelector, ExpectedSessionProfileSelector>>();
+expectType<Assignable<ExpectedSessionProfileSelector, SessionProfileSelector>>();
+expectType<Assignable<ScaleReading['selectedUserSlug'], string | undefined>>();
+expectType<Assignable<string | undefined, ScaleReading['selectedUserSlug']>>();
+expectType<Assignable<ConnectionContext['selectProfile'], SessionProfileSelector | undefined>>();
+expectType<Assignable<SessionProfileSelector | undefined, ConnectionContext['selectProfile']>>();
+expectType<Assignable<ScanOptions['selectProfile'], SessionProfileSelector | undefined>>();
+expectType<Assignable<SessionProfileSelector | undefined, ScanOptions['selectProfile']>>();
 
 // A bare core-only adapter (no GATT, no unlock, no broadcast) is a valid ScaleAdapter.
 const coreOnly: ScaleAdapter = {

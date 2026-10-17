@@ -215,6 +215,7 @@ export async function scanAndReadRaw(opts: ScanOptions): Promise<RawReading> {
     adapters,
     profile,
     scaleAuth,
+    selectProfile,
     weightUnit,
     onLiveData,
     onLiveWeight,
@@ -388,6 +389,7 @@ export async function scanAndReadRaw(opts: ScanOptions): Promise<RawReading> {
       weightUnit,
       onLiveData,
       scaleAuth,
+      selectProfile,
       readingTimeoutMs,
     });
     gattSucceeded = true;

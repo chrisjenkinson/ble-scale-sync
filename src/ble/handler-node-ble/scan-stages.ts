@@ -13,7 +13,11 @@
  * reason they are separable.
  */
 
-import type { BleDeviceInfo, ScaleAdapter } from '../../interfaces/scale-adapter.js';
+import type {
+  BleDeviceInfo,
+  ScaleAdapter,
+  SessionProfileSelector,
+} from '../../interfaces/scale-adapter.js';
 import type { BleChar } from '../shared.js';
 import { resolveAdapter } from '../../scales/resolve.js';
 import {
@@ -441,6 +445,7 @@ export async function readWithTimeouts(
     onLiveData?: (reading: ScaleReading) => void;
     scaleAuth?: ScaleAuth;
     readingTimeoutMs?: number;
+    selectProfile?: SessionProfileSelector;
   },
 ): Promise<RawReading> {
   const idleMs = opts.readingTimeoutMs ?? RAW_READING_TIMEOUT_MS;
@@ -458,6 +463,7 @@ export async function readWithTimeouts(
             opts.onLiveData,
             opts.scaleAuth,
             onActivity,
+            opts.selectProfile,
           ),
         idleMs,
         'Timed out waiting for a complete scale reading',

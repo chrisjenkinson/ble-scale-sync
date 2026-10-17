@@ -36,6 +36,7 @@
     "sync:addon-changelog": "tsx src/tools/sync-addon-changelog.ts",
     "sync:addon-changelog:check": "tsx src/tools/sync-addon-changelog.ts check",
     "test": "vitest run",
+    "test:types": "tsc --project tsconfig.test-types.json",
     "lint": "eslint src tests",
     "lint:fix": "eslint src tests --fix",
     "format": "prettier --write \"src/**/*.ts\" \"tests/**/*.ts\"",

@@ -224,6 +224,7 @@ export function createNobleHandler({ noble, getState }: NobleHandlerDeps) {
                   onLiveData,
                   scaleAuth,
                   onActivity,
+                  opts.selectProfile,
                 ),
               readingTimeoutMs ?? RAW_READING_TIMEOUT_MS,
               'Timed out waiting for a complete scale reading',

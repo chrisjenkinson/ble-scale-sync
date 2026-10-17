@@ -5,6 +5,7 @@ import type {
   BodyComposition,
   UserProfile,
   BleDeviceInfo,
+  SessionProfileSelector,
 } from '../../src/interfaces/scale-adapter.js';
 import type { MqttProxyConfig } from '../../src/config/schema.js';
 import { adapters as realAdapters } from '../../src/scales/index.js';
@@ -1538,6 +1539,80 @@ describe('handler-mqtt-proxy', () => {
       expect(raw.reading.weight).toBe(80.0);
       expect(raw.reading.impedance).toBe(450);
       expect(raw.adapter.name).toBe('GattScale');
+    });
+    it('uses the reloaded selector and clears it when removed', async () => {
+      const selectors: Array<SessionProfileSelector | undefined> = [];
+      const selectionA = {
+        userSlug: 'a',
+        profile: { height: 170, age: 30, gender: 'male' as const, isAthlete: false },
+      };
+      const selectionB = {
+        userSlug: 'b',
+        profile: { height: 180, age: 40, gender: 'female' as const, isAthlete: false },
+      };
+      const results: Array<unknown> = [];
+      const selectorA: SessionProfileSelector = vi.fn(() => selectionA);
+      const selectorB: SessionProfileSelector = vi.fn(() => selectionB);
+      const adapter = {
+        ...createGattAdapter(),
+        characteristics: [{ uuid: GATT_NOTIFY_UUID, type: 'notify' }],
+        onConnected: vi.fn(async (ctx: { selectProfile?: SessionProfileSelector }) => {
+          selectors.push(ctx.selectProfile);
+          results.push(ctx.selectProfile ? ctx.selectProfile(80) : undefined);
+          throw new Error('propagation test session complete');
+        }),
+      } as ScaleAdapter;
+      const config = { ...MQTT_PROXY_CONFIG, auto_connect: false };
+      const watcher = new ReadingWatcher(config, [adapter], undefined, PROFILE, selectorA);
+      await watcher.start();
+      const origPublish = mockClient.publishAsync;
+      mockClient.publishAsync = vi.fn(async (topic: string, payload?: string | Buffer) => {
+        if (topic === `${PREFIX}/connect`) {
+          queueMicrotask(() => {
+            mockClient._simulateMessage(
+              `${PREFIX}/connected`,
+              JSON.stringify({
+                chars: [
+                  { uuid: GATT_NOTIFY_UUID, properties: ['notify'] },
+                  { uuid: GATT_WRITE_UUID, properties: ['write'] },
+                ],
+              }),
+            );
+            queueMicrotask(() => {
+              const buf = Buffer.alloc(4);
+              buf.writeUInt16LE(8000, 0);
+              buf.writeUInt16LE(450, 2);
+              mockClient._simulateMessage(`${PREFIX}/notify/${GATT_NOTIFY_UUID}`, buf);
+            });
+          });
+        }
+        return origPublish(topic, payload);
+      });
+      const emitScan = (): void =>
+        mockClient._simulateMessage(
+          `${PREFIX}/scan/results`,
+          JSON.stringify([
+            {
+              address: 'AA:BB:CC:DD:EE:FF',
+              name: 'GattScale',
+              rssi: -50,
+              services: [],
+              addr_type: 0,
+            },
+          ]),
+        );
+
+      emitScan();
+      await vi.waitFor(() => expect(selectors).toHaveLength(1));
+      watcher.updateConfig({ adapters: [adapter], selectProfile: selectorB });
+      emitScan();
+      await vi.waitFor(() => expect(selectors).toHaveLength(2));
+      watcher.updateConfig({ adapters: [adapter] });
+      emitScan();
+      await vi.waitFor(() => expect(selectors).toHaveLength(3));
+
+      expect(results).toEqual([selectionA, selectionB, undefined]);
+      await watcher.stop();
     });
 
     it('rejects with ESP32 error instead of timeout when connect fails', async () => {

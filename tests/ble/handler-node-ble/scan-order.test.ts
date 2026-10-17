@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import type { ScaleAdapter } from '../../../src/interfaces/scale-adapter.js';
+import type * as BleTypes from '../../../src/ble/types.js';
 import { defaultProfile } from '../../helpers/scale-test-utils.js';
 
 /**
@@ -29,6 +30,14 @@ const record =
 
 vi.mock('dbus-next', () => ({ default: {}, Variant: class {} }));
 vi.mock('node-ble', () => ({ default: { createBluetooth: () => ({ bluetooth: {} }) } }));
+
+vi.mock('../../../src/ble/types.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof BleTypes>();
+  return {
+    ...actual,
+    resetAdapterBtmgmt: record('resetAdapterBtmgmt', async () => true),
+  };
+});
 
 const fakeAdapter = {
   isPowered: async () => {

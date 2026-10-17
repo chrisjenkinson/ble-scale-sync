@@ -16,7 +16,7 @@ import { runHealthchecks } from './orchestrator.js';
 const require = createRequire(import.meta.url);
 const pkg = require('../package.json') as { version: string };
 import { loadAppConfig } from './config/load.js';
-import { resolveRuntimeConfig } from './config/resolve.js';
+import { resolveRuntimeConfig, resolveSessionProfile } from './config/resolve.js';
 import { startConfigWatcher, type ConfigWatcherHandle } from './config/watch.js';
 import { configureUpdateState } from './update-state.js';
 import { flushQueue } from './runtime/export-queue.js';
@@ -368,7 +368,9 @@ async function main(): Promise<void> {
 
   if (!initialResolved.continuousMode) {
     await flushQueuedExports();
-    const source = new PollReadingSource(ctx, adapters);
+    const source = new PollReadingSource(ctx, adapters, (weightKg) =>
+      resolveSessionProfile(ctx.config, weightKg),
+    );
     const raw = await source.nextReading(ctx.signal);
     const success = await runProcessReading(raw);
     if (!success) process.exit(1);

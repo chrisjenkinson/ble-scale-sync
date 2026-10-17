@@ -3,6 +3,7 @@ import type {
   BodyComposition,
   UserProfile,
   ScaleAuth,
+  SessionProfileSelector,
 } from '../interfaces/scale-adapter.js';
 import type { MqttProxyConfig, EsphomeProxyConfig, HaBluetoothConfig } from '../config/schema.js';
 import type { ScanOptions, ScanResult, BleHandlerName } from './types.js';
@@ -118,6 +119,7 @@ export interface ReadingSourceOptions {
   adapters: ScaleAdapter[];
   targetMac?: string;
   profile: UserProfile;
+  selectProfile?: SessionProfileSelector;
   scaleAuth?: ScaleAuth;
 }
 
@@ -143,7 +145,13 @@ export async function createReadingSource(opts: ReadingSourceOptions): Promise<R
   const key = resolveHandlerKey(opts.bleHandler);
 
   if (key === 'mqtt-proxy' && opts.mqttProxy) {
-    const watcher = new ReadingWatcher(opts.mqttProxy, opts.adapters, opts.targetMac, opts.profile);
+    const watcher = new ReadingWatcher(
+      opts.mqttProxy,
+      opts.adapters,
+      opts.targetMac,
+      opts.profile,
+      opts.selectProfile,
+    );
     return { kind: 'watcher', watcher, failureLogPrefix: 'Error processing reading' };
   }
 
@@ -156,6 +164,7 @@ export async function createReadingSource(opts: ReadingSourceOptions): Promise<R
       opts.targetMac,
       opts.profile,
       opts.scaleAuth,
+      opts.selectProfile,
     );
     return { kind: 'watcher', watcher, failureLogPrefix: 'Error processing ESPHome reading' };
   }
@@ -167,6 +176,7 @@ export async function createReadingSource(opts: ReadingSourceOptions): Promise<R
       opts.adapters,
       opts.targetMac,
       opts.profile,
+      opts.selectProfile,
     );
     return {
       kind: 'watcher',

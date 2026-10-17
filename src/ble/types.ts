@@ -4,6 +4,7 @@ import type {
   ScaleReading,
   ScaleAuth,
   LiveWeight,
+  SessionProfileSelector,
 } from '../interfaces/scale-adapter.js';
 import type {
   WeightUnit,
@@ -152,6 +153,11 @@ export interface ScanOptions {
    * have no bond to clear.
    */
   autoClearStaleBond?: boolean;
+  /**
+   * Select the profile authorized for body-composition data at a measured weight.
+   * Return `null` when the runtime cannot safely authorize that data for the weight.
+   */
+  selectProfile?: SessionProfileSelector;
 }
 
 export interface ScanResult {

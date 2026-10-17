@@ -57,6 +57,10 @@ export interface ScaleReading {
   weight: number;
   impedance: number;
   /**
+   * User slug selected for this session, when profile authorization resolved one.
+   */
+  selectedUserSlug?: string;
+  /**
    * When set, marks this reading as historical: the scale dumped it from its
    * onboard cache rather than producing it live. Adapters populate it for
    * offline frames whose protocol carries an age field (e.g. ES-26BB-B 0x15
@@ -88,6 +92,18 @@ export interface UserProfile {
    */
   lastKnownWeight?: number;
 }
+/** A profile selected for the current session and authorized for a weight. */
+export interface SessionProfileSelection {
+  userSlug: string;
+  profile: UserProfile;
+}
+
+/**
+ * Resolves the profile authorized for body-composition data at a measured weight.
+ * Return `null` when the runtime cannot safely authorize body-composition data
+ * for the weight.
+ */
+export type SessionProfileSelector = (weightKg: number) => SessionProfileSelection | null;
 
 export interface BodyComposition {
   weight: number;
@@ -164,6 +180,11 @@ export interface ConnectionContext {
   subscribe(charUuid: string): Promise<void>;
   /** User profile from .env configuration. */
   profile: UserProfile;
+  /**
+   * Select the profile authorized for body-composition data at a measured weight.
+   * Return `null` when the runtime cannot safely authorize that data for the weight.
+   */
+  selectProfile?: SessionProfileSelector;
   /** Optional consent material for scales that need a PIN (Beurer SIG). */
   scaleAuth?: ScaleAuth;
   /**

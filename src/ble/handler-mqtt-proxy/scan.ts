@@ -223,6 +223,8 @@ export async function scanAndReadRaw(opts: ScanOptions): Promise<RawReading> {
             opts.weightUnit,
             opts.onLiveData,
             opts.scaleAuth,
+            undefined,
+            opts.selectProfile,
           ),
         );
         registerScaleMac(config, entry.address).catch(() => {});

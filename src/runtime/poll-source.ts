@@ -3,6 +3,7 @@ import type { ScaleAdapter } from '../interfaces/scale-adapter.js';
 import { scanAndReadRaw } from '../ble/index.js';
 import { withTimeout, POLL_CYCLE_TIMEOUT_MS } from '../ble/types.js';
 import { resolveUserProfile } from '../config/resolve.js';
+import type { SessionProfileSelector } from '../interfaces/scale-adapter.js';
 import { fmtWeight } from './format.js';
 import type { AppContext } from './context.js';
 import type { ReadingSource } from './loop.js';
@@ -15,6 +16,7 @@ export class PollReadingSource implements ReadingSource {
   constructor(
     private readonly ctx: AppContext,
     private readonly adapters: ScaleAdapter[],
+    private readonly selectProfile: SessionProfileSelector,
   ) {}
 
   async nextReading(signal: AbortSignal): Promise<RawReading> {
@@ -33,6 +35,7 @@ export class PollReadingSource implements ReadingSource {
       targetMac: this.ctx.scaleMac,
       adapters: this.adapters,
       profile,
+      selectProfile: this.selectProfile,
       scaleAuth: {
         pin: primaryUser.beurer_pin,
         userIndex: primaryUser.beurer_user_index,
